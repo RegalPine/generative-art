@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generative Art Engine - 数学曲线美学</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    .app {
+      display: flex;
+      height: 100vh;
+    }
+    
+    /* 左侧树形菜单 */
+    .sidebar {
+      width: 280px;
+      background: #111;
+      border-right: 1px solid #222;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    
+    .sidebar-header {
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-size: 1.2em;
+      font-weight: 600;
+      text-align: center;
+    }
+    
+    .tree-group {
+      border-bottom: 1px solid #1a1a1a;
+    }
+    
+    .tree-group-title {
+      padding: 12px 16px;
+      background: #1a1a1a;
+      font-size: 0.9em;
+      font-weight: 600;
+      color: #888;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .tree-group-title::before {
+      content: '▼';
+      font-size: 0.7em;
+      transition: transform 0.2s;
+    }
+    
+    .tree-group.collapsed .tree-group-title::before {
+      transform: rotate(-90deg);
+    }
+    
+    .tree-group.collapsed .tree-items {
+      display: none;
+    }
+    
+    .tree-items {
+      padding: 4px 0;
+    }
+    
+    .tree-item {
+      padding: 8px 16px 8px 32px;
+      cursor: pointer;
+      font-size: 0.85em;
+      color: #aaa;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .tree-item:hover {
+      background: #1a1a1a;
+      color: #fff;
+    }
+    
+    .tree-item.active {
+      background: #667eea;
+      color: #fff;
+    }
+    
+    .tree-item-icon {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.6;
+    }
+    
+    /* 右侧主区域 */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    /* 渲染区域 */
+    .render-area {
+      flex: 1;
+      position: relative;
+      background: #000;
+      min-height: 0;
+    }
+    
+    .render-area canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    
+    .render-info {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.8em;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .render-info div {
+      margin: 4px 0;
+    }
+    
+    .render-info .label {
+      color: #888;
+    }
+    
+    .render-info .value {
+      color: #667eea;
+      font-weight: bold;
+    }
+    
+    .preset-title {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 12px 20px;
+      border-radius: 8px;
+    }
+    
+    .preset-title h2 {
+      font-size: 1.4em;
+      margin-bottom: 4px;
+    }
+    
+    .preset-title p {
+      font-size: 0.85em;
+      color: #aaa;
+    }
+    
+    /* 参数调节面板 */
+    .control-panel {
+      height: 200px;
+      background: #111;
+      border-top: 1px solid #222;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    
+    .panel-title {
+      font-size: 1em;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #fff;
+    }
+    
+    .control-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+    }
+    
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85em;
+      color: #aaa;
+    }
+    
+    .control-value {
+      color: #667eea;
+      font-weight: 600;
+      font-family: 'Courier New', monospace;
+    }
+    
+    input[type="range"] {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: #222;
+      outline: none;
+      -webkit-appearance: none;
+    }
+    
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #667eea;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    input[type="range"]::-webkit-slider-thumb:hover {
+      background: #764ba2;
+    }
+    
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #667eea;
+      cursor: pointer;
+      border: none;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    
+    button {
+      flex: 1;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      background: #667eea;
+      color: #fff;
+      font-size: 0.9em;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    
+    button:hover {
+      background: #5568d3;
+      transform: translateY(-1px);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    button.secondary {
+      background: #222;
+    }
+    
+    button.secondary:hover {
+      background: #333;
+    }
+    
+    /* 滚动条样式 */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #0a0a0a;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: #444;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- 左侧树形菜单 -->
+    <div class="sidebar">
+      <div class="sidebar-header">🎨 数学曲线美学</div>
+      <div id="tree"></div>
+    </div>
+    
+    <!-- 右侧主区域 -->
+    <div class="main">
+      <!-- 渲染区域 -->
+      <div class="render-area">
+        <canvas id="canvas"></canvas>
+        <div class="render-info">
+          <div><span class="label">FPS:</span> <span class="value" id="fps">0</span></div>
+          <div><span class="label">渲染器:</span> <span class="value" id="renderer">Canvas2D</span></div>
+          <div><span class="label">性能档位:</span> <span class="value" id="tier">-</span></div>
+        </div>
+        <div class="preset-title">
+          <h2 id="preset-name">FLOW</h2>
+          <p id="preset-desc">流体动力学模拟，优雅的曲线流动效果</p>
+        </div>
+      </div>
+      
+      <!-- 参数调节面板 -->
+      <div class="control-panel">
+        <div class="panel-title">参数调节</div>
+        <div class="control-grid">
+          <div class="control-group">
+            <div class="control-label">
+              <span>密度 (Density)</span>
+              <span class="control-value" id="density-value">0.60</span>
+            </div>
+            <input type="range" id="density" min="0" max="1" step="0.01" value="0.6">
+          </div>
+          <div class="control-group">
+            <div class="control-label">
+              <span>能量 (Energy)</span>
+              <span class="control-value" id="energy-value">0.40</span>
+            </div>
+            <input type="range" id="energy" min="0" max="1" step="0.01" value="0.4">
+          </div>
+          <div class="control-group">
+            <div class="control-label">
+              <span>复杂度 (Complexity)</span>
+              <span class="control-value" id="complexity-value">0.50</span>
+            </div>
+            <input type="range" id="complexity" min="0" max="1" step="0.01" value="0.5">
+          </div>
+        </div>
+        <div class="button-group">
+          <button id="pause-btn">暂停</button>
+          <button id="regen-btn" class="secondary">重新生成</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script type="module">
+    import { createGenerativeArt, BUILT_IN_PRESETS, detectInitialTier, getTierConfig } from '../dist/index.js'
+    
+    // Preset 分类
+    const categories = {
+      '基础曲线': ['flow', 'aurora', 'wave', 'ribbon', 'organic', 'orbital', 'mesh', 'atmosphere'],
+      '参数曲线': ['lissajous', 'rose', 'logspiral', 'archspiral', 'cycloid', 'cardioid', 'astroid'],
+      '调制函数': ['amwave', 'fmwave', 'moire', 'fourier'],
+      '自然形态': ['gaussian', 'sinc', 'catenary'],
+      '分形曲线': ['koch', 'dragon', 'hilbert', 'levyc', 'sierpinski', 'fractaltree', 'peano'],
+      '拓扑曲线': ['mobius', 'torus', 'trefoil', 'fig8knot', 'borromean'],
+      '经典曲线': ['superellipse', 'lemniscate', 'folium', 'witch', 'fermat', 'hypspiral'],
+      '摆线变体': ['epicycloid', 'hypocycloid', 'involute'],
+      '特殊曲线': ['conchoid', 'cissoid', 'trisectrix'],
+      '优美曲线': ['cassini', 'butterfly', 'torusknot'],
+      '物理曲线': ['spring', 'decaylissajous'],
+      '扩展曲线': ['paraspiral', 'cartesian', 'rhodonea3d'],
+      '艺术曲线': ['harmonograph', 'spirograph', 'heart'],
+      '螺线族': ['theodorus', 'epitrochoid', 'hypotrochoid'],
+    }
+    
+    // Preset 描述
+    const presetDescriptions = {
+      flow: '流体动力学模拟，优雅的曲线流动效果',
+      aurora: '极光效果，柔和的光带在空间中舞动',
+      wave: '波浪形态，规律的起伏运动',
+      ribbon: '丝带效果，柔韧的带状结构',
+      organic: '有机形态，自然生长的视觉效果',
+      orbital: '轨道运动，天体运行的轨迹',
+      mesh: '网格结构，规则的空间划分',
+      atmosphere: '大气效果，朦胧的空间氛围',
+      lissajous: '李萨如图形 — 谐波比对称图案',
+      rose: '玫瑰曲线 — 花瓣形状',
+      logspiral: '对数螺线 — 黄金螺旋生长',
+      archspiral: '阿基米德螺线 — 等间距螺旋',
+      cycloid: '摆线 — 滚动圆上的点',
+      cardioid: '心脏线 — 心形曲线',
+      astroid: '星形线 — 四尖星形',
+      amwave: '调幅波 — 拍频效果',
+      fmwave: '调频波 — 复杂有序图案',
+      moire: '莫尔条纹 — 干涉图案',
+      fourier: '傅里叶叠加 — 谐波级数',
+      gaussian: '高斯曲线 — 钟形分布',
+      sinc: 'Sinc函数 — 衍射图案',
+      catenary: '悬链线 — 悬挂的链',
+      koch: '科赫曲线 — 雪花分形',
+      dragon: '龙形曲线 — 折纸曲线',
+      hilbert: '希尔伯特曲线 — 空间填充',
+      levyc: '莱维 C 曲线 — 自相似分形',
+      sierpinski: '谢尔宾斯基三角形 — 递归分形',
+      fractaltree: '分形树 — 分支结构',
+      peano: '皮亚诺曲线 — 空间填充',
+      mobius: '莫比乌斯带 — 单侧曲面',
+      torus: '环面 — 甜甜圈形状',
+      trefoil: '三叶结 — 最简单非平凡结',
+      fig8knot: '八字结 — 最简单交错结',
+      borromean: '博罗米恩环 — 三环互锁',
+      superellipse: '超椭圆 — 椭圆与矩形之间',
+      lemniscate: '双纽线 — 无穷大符号',
+      folium: '笛卡尔叶形线 — 叶状曲线',
+      witch: '阿涅西箕舌线 — 钟形曲线',
+      fermat: '费马螺线 — 抛物线螺线',
+      hypspiral: '双曲螺线 — 反比例螺线',
+      epicycloid: '外摆线 — 圆外滚动',
+      hypocycloid: '内摆线 — 圆内滚动',
+      involute: '渐开线 — 展开的弦',
+      conchoid: '蚌线 — 贝壳形状',
+      cissoid: '蔓叶线 — 常春藤形状',
+      trisectrix: '三等分角线 — 角度三等分',
+      cassini: '卡西尼卵形线 — 到两焦点距离之积为常数',
+      butterfly: '蝴蝶曲线 — 优美的蝴蝶形状',
+      torusknot: '环面纽结 — 环面上的复杂纽结',
+      paraspiral: '抛物螺线 — 抛物线增长的螺线',
+      cartesian: '笛卡尔卵形线 — 广义椭圆',
+      spring: '弹簧曲线 — 阻尼谐振运动',
+      decaylissajous: '衰减李萨如 — 带衰减的李萨如图形',
+      rhodonea3d: '三维玫瑰线 — 带深度投影的玫瑰',
+      harmonograph: '谐波图 — 摆锤艺术曲线',
+      spirograph: '螺旋图 — 经典玩具曲线',
+      heart: '心形线 — 优美的心形',
+      theodorus: '西奥多罗斯螺线 — 平方根螺线',
+      epitrochoid: '外旋轮线 — 广义外摆线',
+      hypotrochoid: '内旋轮线 — 广义内摆线',
+    }
+    
+    // 构建树形菜单
+    const tree = document.getElementById('tree')
+    const presetMap = new Map()
+    BUILT_IN_PRESETS.forEach(p => presetMap.set(p.id, p))
+    
+    let currentPreset = 'flow'
+    let currentInstance = null
+    
+    Object.entries(categories).forEach(([category, presetIds]) => {
+      const group = document.createElement('div')
+      group.className = 'tree-group'
+      
+      const title = document.createElement('div')
+      title.className = 'tree-group-title'
+      title.textContent = category
+      title.onclick = () => group.classList.toggle('collapsed')
+      
+      const items = document.createElement('div')
+      items.className = 'tree-items'
+      
+      presetIds.forEach(id => {
+        const item = document.createElement('div')
+        item.className = 'tree-item'
+        if (id === currentPreset) item.classList.add('active')
+        
+        const icon = document.createElement('div')
+        icon.className = 'tree-item-icon'
+        
+        const label = document.createElement('span')
+        label.textContent = id.toUpperCase()
+        
+        item.appendChild(icon)
+        item.appendChild(label)
+        
+        item.onclick = () => {
+          document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'))
+          item.classList.add('active')
+          switchPreset(id)
+        }
+        
+        items.appendChild(item)
+      })
+      
+      group.appendChild(title)
+      group.appendChild(items)
+      tree.appendChild(group)
+    })
+    
+    // 初始化渲染
+    const canvas = document.getElementById('canvas')
+    const fpsEl = document.getElementById('fps')
+    const rendererEl = document.getElementById('renderer')
+    const tierEl = document.getElementById('tier')
+    const presetNameEl = document.getElementById('preset-name')
+    const presetDescEl = document.getElementById('preset-desc')
+    
+    // 显示性能信息
+    const tier = detectInitialTier()
+    const tierConfig = getTierConfig(tier)
+    rendererEl.textContent = 'Canvas2D'
+    tierEl.textContent = `Tier ${tier} (${tierConfig.label})`
+    
+    // 参数控制
+    const densitySlider = document.getElementById('density')
+    const energySlider = document.getElementById('energy')
+    const complexitySlider = document.getElementById('complexity')
+    const densityValue = document.getElementById('density-value')
+    const energyValue = document.getElementById('energy-value')
+    const complexityValue = document.getElementById('complexity-value')
+    
+    function updateSliderValues() {
+      densityValue.textContent = parseFloat(densitySlider.value).toFixed(2)
+      energyValue.textContent = parseFloat(energySlider.value).toFixed(2)
+      complexityValue.textContent = parseFloat(complexitySlider.value).toFixed(2)
+    }
+    
+    densitySlider.oninput = updateSliderValues
+    energySlider.oninput = updateSliderValues
+    complexitySlider.oninput = updateSliderValues
+    
+    // 创建实例
+    function createInstance(presetId) {
+      if (currentInstance) {
+        currentInstance.destroy()
+      }
+      
+      currentInstance = createGenerativeArt({
+        target: canvas,
+        preset: presetId,
+        semantic: {
+          density: parseFloat(densitySlider.value),
+          energy: parseFloat(energySlider.value),
+          complexity: parseFloat(complexitySlider.value)
+        }
+      })
+      
+      currentInstance.start()
+    }
+    
+    // 切换 preset
+    function switchPreset(presetId) {
+      currentPreset = presetId
+      presetNameEl.textContent = presetId.toUpperCase()
+      presetDescEl.textContent = presetDescriptions[presetId] || '生成式艺术效果'
+      createInstance(presetId)
+    }
+    
+    // 暂停/继续
+    const pauseBtn = document.getElementById('pause-btn')
+    let isPaused = false
+    pauseBtn.onclick = () => {
+      if (!currentInstance) return
+      if (isPaused) {
+        currentInstance.resume()
+        pauseBtn.textContent = '暂停'
+      } else {
+        currentInstance.pause()
+        pauseBtn.textContent = '继续'
+      }
+      isPaused = !isPaused
+    }
+    
+    // 重新生成
+    const regenBtn = document.getElementById('regen-btn')
+    regenBtn.onclick = () => {
+      createInstance(currentPreset)
+    }
+    
+    // 初始化
+    createInstance('flow')
+    
+    // FPS 监控
+    let frameCount = 0
+    let lastTime = performance.now()
+    
+    function updateFPS() {
+      frameCount++
+      const now = performance.now()
+      if (now - lastTime >= 1000) {
+        fpsEl.textContent = frameCount
+        frameCount = 0
+        lastTime = now
+      }
+      requestAnimationFrame(updateFPS)
+    }
+    updateFPS()
+  </script>
+</body>
+</html>
